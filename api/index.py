@@ -126,6 +126,104 @@ async def _html(send, html: str) -> None:
     await send({"type": "http.response.body", "body": html.encode()})
 
 
+async def _json(send, status: int, data: dict) -> None:
+    import json
+
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": [(b"content-type", b"application/json; charset=utf-8")],
+        }
+    )
+    await send(
+        {"type": "http.response.body", "body": json.dumps(data, ensure_ascii=False, indent=2).encode()}
+    )
+
+
+async def _diagnose(send) -> None:
+    """Checks Redis storage and a client registration, returning any error text."""
+    import time
+    import traceback
+
+    result: dict = {"redis_url_set": bool(os.environ.get("GOOGLE_ADS_MCP_STORAGE_REDIS_URL"))}
+
+    # 1. Raw Redis round trip through the same storage ads_mcp uses.
+    try:
+        from ads_mcp.auth_storage import create_client_storage
+
+        store = create_client_storage()
+        result["storage_class"] = type(store).__name__ if store is not None else None
+        if store is not None:
+            t = time.monotonic()
+            await store.put(key="diag", value={"ok": True}, collection="diagnose", ttl=60)
+            got = await store.get(key="diag", collection="diagnose")
+            result["redis_roundtrip"] = "ok" if got else f"unexpected: {got!r}"
+            result["redis_ms"] = round((time.monotonic() - t) * 1000)
+    except Exception as e:  # noqa: BLE001
+        result["redis_error"] = f"{type(e).__name__}: {e}"
+        result["redis_traceback"] = traceback.format_exc()[-2000:]
+
+    # 2. A client registration exactly like Claude's, through the real app.
+    try:
+        import json
+        from urllib.parse import urlparse
+
+        await _ensure_started()
+        body = json.dumps(
+            {
+                "client_name": "diagnose",
+                "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"],
+                "grant_types": ["authorization_code", "refresh_token"],
+                "response_types": ["code"],
+                "token_endpoint_auth_method": "none",
+            }
+        ).encode()
+        host = urlparse(os.environ.get("GOOGLE_ADS_MCP_BASE_URL", "http://localhost")).netloc
+        req_scope = {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "https",
+            "path": "/register",
+            "raw_path": b"/register",
+            "query_string": b"",
+            "root_path": "",
+            "headers": [
+                (b"host", host.encode()),
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+            "client": ("127.0.0.1", 0),
+            "server": (host, 443),
+        }
+        sent = False
+        out: dict = {"status": None, "body": b""}
+
+        async def _receive():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return {"type": "http.disconnect"}
+
+        async def _send(message):
+            if message["type"] == "http.response.start":
+                out["status"] = message["status"]
+            elif message["type"] == "http.response.body":
+                out["body"] += message.get("body", b"")
+
+        await _mcp_app(req_scope, _receive, _send)
+        result["register_status"] = out["status"]
+        result["register_body"] = out["body"].decode(errors="replace")[:1500]
+    except Exception as e:  # noqa: BLE001
+        result["register_error"] = f"{type(e).__name__}: {e}"
+        result["register_traceback"] = traceback.format_exc()[-2000:]
+
+    await _json(send, 200, result)
+
+
 async def app(scope, receive, send):
     global _platform_runs_lifespan
     if scope["type"] == "lifespan":
@@ -135,5 +233,14 @@ async def app(scope, receive, send):
         return await _health(send)
     if scope["type"] == "http" and scope.get("path") in ("/", "/privacy"):
         return await _html(send, _HOME if scope["path"] == "/" else _PRIVACY)
+    if scope["type"] == "http" and scope.get("path") == "/diagnose":
+        return await _diagnose(send)
     await _ensure_started()
-    return await _mcp_app(scope, receive, send)
+    try:
+        return await _mcp_app(scope, receive, send)
+    except Exception:
+        # Make crashes visible in Vercel's runtime logs.
+        import traceback
+
+        print(f"ERROR on {scope.get('method')} {scope.get('path')}:\n{traceback.format_exc()}", flush=True)
+        raise
