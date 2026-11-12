@@ -45,3 +45,7 @@ issues = "https://github.com/googleads/google-ads-mcp/issues"
 [project.scripts]
 google-ads-mcp = "ads_mcp.server:run_server"
 google-ads-mcp-update-gaql = "ads_mcp.update_references:update_gaql_resource_file"
+
+[tool.setuptools.packages.find]
+# Só o pacote do servidor; "api/" é a função do Vercel, não faz parte do pacote.
+include = ["ads_mcp*"]
