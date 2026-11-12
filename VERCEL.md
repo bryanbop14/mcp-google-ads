@@ -23,7 +23,20 @@ Fork do [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp)
 | `GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET` | Chave secreta desse cliente |
 | `GOOGLE_ADS_MCP_BASE_URL` | `https://SEU-PROJETO.vercel.app` (sem barra no fim) |
 | `GOOGLE_ADS_MCP_JWT_SIGNING_KEY` | Texto aleatório longo (`openssl rand -hex 32`) |
-| `GOOGLE_ADS_MCP_STORAGE_REDIS_URL` | URL `rediss://...` do Redis (Upstash) |
+| `GOOGLE_ADS_MCP_STORAGE_REDIS_URL` | URL `rediss://...` do Redis. Opcional: se a integração Upstash do Vercel foi criada com o prefixo `GOOGLE_ADS_MCP_STORAGE_REDIS`, o servidor lê `GOOGLE_ADS_MCP_STORAGE_REDIS_REDIS_URL` sozinho |
+
+## Obrigatório: desligar a Vercel Authentication
+
+Em **Settings → Deployment Protection**, a **Vercel Authentication** precisa estar
+desligada para a produção. Com ela ligada, o Claude e o ChatGPT recebem um redirect
+para o login do Vercel e nunca chegam ao servidor (o navegador de quem está logado no
+Vercel funciona normalmente, o que esconde o problema). O servidor já se protege com
+o login do Google.
+
+## Login do Google
+
+Na tela de consentimento, a permissão do **Google Ads** vem com uma caixa de seleção:
+ela precisa ser marcada, senão o servidor recusa a autorização.
 
 ## Endereços
 
