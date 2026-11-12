@@ -13,6 +13,19 @@ import sys
 # Make the ads_mcp package importable from the repo root.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# The Vercel Redis integration names its variables <PREFIX>_REDIS_URL /
+# <PREFIX>_KV_URL. Map them to the name ads_mcp reads, unless it is already set.
+if not os.environ.get("GOOGLE_ADS_MCP_STORAGE_REDIS_URL"):
+    for _name in (
+        "GOOGLE_ADS_MCP_STORAGE_REDIS_REDIS_URL",
+        "GOOGLE_ADS_MCP_STORAGE_REDIS_KV_URL",
+        "REDIS_URL",
+        "KV_URL",
+    ):
+        if os.environ.get(_name):
+            os.environ["GOOGLE_ADS_MCP_STORAGE_REDIS_URL"] = os.environ[_name]
+            break
+
 from ads_mcp.coordinator import mcp  # noqa: E402
 
 # Registers the resources on the shared `mcp` instance.
@@ -47,11 +60,13 @@ async def _ensure_started() -> None:
 
 
 async def _health(send) -> None:
-    body = b'{"status":"ok","oauth":%s}' % (
-        b"true"
-        if os.environ.get("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID")
-        and os.environ.get("GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET")
-        else b"false"
+    def flag(*names: str) -> bytes:
+        return b"true" if all(os.environ.get(n) for n in names) else b"false"
+
+    body = b'{"status":"ok","oauth":%s,"redis":%s,"developer_token":%s}' % (
+        flag("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID", "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"),
+        flag("GOOGLE_ADS_MCP_STORAGE_REDIS_URL"),
+        flag("GOOGLE_ADS_DEVELOPER_TOKEN"),
     )
     await send(
         {
