@@ -224,6 +224,95 @@ async def _diagnose(send) -> None:
     await _json(send, 200, result)
 
 
+# --- Temporary request recorder (OAuth/MCP traffic), readable at /diagnose/requests.
+_REC_PATHS = ("/register", "/authorize", "/token", "/auth/callback", "/.well-known", "/mcp", "/consent")
+_REC_BODY_PATHS = ("/register",)  # only these keep request/response bodies (no secrets there)
+_rec_store = None
+_rec_memory: list = []
+
+
+async def _recorder_store():
+    global _rec_store
+    if _rec_store is None:
+        from ads_mcp.auth_storage import create_client_storage
+
+        _rec_store = create_client_storage() or False
+    return _rec_store or None
+
+
+async def _record(entry: dict) -> None:
+    try:
+        store = await _recorder_store()
+        if store is None:
+            _rec_memory.append(entry)
+            del _rec_memory[:-30]
+            return
+        cur = await store.get(key="log", collection="diag_requests") or {}
+        items = (cur.get("items") or [])[-29:] + [entry]
+        await store.put(key="log", value={"items": items}, collection="diag_requests", ttl=86400)
+    except Exception as e:  # noqa: BLE001
+        print(f"recorder error: {e!r}", flush=True)
+
+
+async def _recorded(send) -> None:
+    store = await _recorder_store()
+    items = _rec_memory
+    if store is not None:
+        items = ((await store.get(key="log", collection="diag_requests")) or {}).get("items", [])
+    await _json(send, 200, {"count": len(items), "items": items})
+
+
+async def _with_recording(scope, receive, send):
+    import time
+
+    path = scope.get("path", "")
+    keep_body = path.startswith(_REC_BODY_PATHS)
+    headers = {k.decode(): v.decode(errors="replace") for k, v in scope.get("headers", [])}
+    entry = {
+        "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
+        "method": scope.get("method"),
+        "path": path,
+        "query": (
+            "[redacted]"
+            if path.startswith(("/auth/callback", "/token"))
+            else scope.get("query_string", b"").decode(errors="replace")[:600]
+        ),
+        "user_agent": headers.get("user-agent", ""),
+        "content_type": headers.get("content-type", ""),
+        "accept": headers.get("accept", ""),
+        "has_authorization": "authorization" in headers,
+    }
+    req_body = bytearray()
+    resp_body = bytearray()
+
+    async def _rx():
+        msg = await receive()
+        if keep_body and msg.get("type") == "http.request":
+            req_body.extend(msg.get("body", b""))
+        return msg
+
+    async def _tx(msg):
+        if msg["type"] == "http.response.start":
+            entry["status"] = msg["status"]
+            for k, v in msg.get("headers", []):
+                if k.lower() in (b"location", b"www-authenticate"):
+                    entry[k.decode().lower()] = v.decode(errors="replace")[:600]
+        elif msg["type"] == "http.response.body" and keep_body:
+            resp_body.extend(msg.get("body", b""))
+        await send(msg)
+
+    try:
+        await _mcp_app(scope, _rx, _tx)
+    except Exception as e:  # noqa: BLE001
+        entry["exception"] = f"{type(e).__name__}: {e}"
+        raise
+    finally:
+        if keep_body:
+            entry["request_body"] = req_body.decode(errors="replace")[:2000]
+            entry["response_body"] = resp_body.decode(errors="replace")[:2000]
+        await _record(entry)
+
+
 async def app(scope, receive, send):
     global _platform_runs_lifespan
     if scope["type"] == "lifespan":
@@ -235,8 +324,12 @@ async def app(scope, receive, send):
         return await _html(send, _HOME if scope["path"] == "/" else _PRIVACY)
     if scope["type"] == "http" and scope.get("path") == "/diagnose":
         return await _diagnose(send)
+    if scope["type"] == "http" and scope.get("path") == "/diagnose/requests":
+        return await _recorded(send)
     await _ensure_started()
     try:
+        if scope["type"] == "http" and scope.get("path", "").startswith(_REC_PATHS):
+            return await _with_recording(scope, receive, send)
         return await _mcp_app(scope, receive, send)
     except Exception:
         # Make crashes visible in Vercel's runtime logs.
