@@ -5,8 +5,5 @@
       "maxDuration": 60,
       "excludeFiles": "{tests/**,docs/**,Dockerfile,noxfile.py}"
     }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
-  ]
+  }
 }
