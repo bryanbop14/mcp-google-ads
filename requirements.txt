@@ -1,0 +1,3 @@
+google-ads>=33.0.0
+mcp[cli]>=2.0.0,<3
+fastmcp[tasks]>=4.0.6,<5
