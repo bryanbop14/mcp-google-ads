@@ -53,3 +53,9 @@ include = ["ads_mcp*"]
 [tool.vercel]
 # Função que o Vercel carrega; ele mesmo manda todas as rotas para ela.
 entrypoint = "api.index:app"
+
+[tool.uv]
+# Não instalar este projeto como pacote no build do Vercel: o servidor roda direto
+# do código do repositório (api/index.py importa ads_mcp da raiz). Instalar o pacote
+# fazia o uv reaproveitar uma cópia antiga em cache, com ferramentas desatualizadas.
+package = false

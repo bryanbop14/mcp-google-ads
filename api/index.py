@@ -63,10 +63,23 @@ async def _health(send) -> None:
     def flag(*names: str) -> bytes:
         return b"true" if all(os.environ.get(n) for n in names) else b"false"
 
-    body = b'{"status":"ok","oauth":%s,"redis":%s,"developer_token":%s}' % (
-        flag("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID", "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"),
-        flag("GOOGLE_ADS_MCP_STORAGE_REDIS_URL"),
-        flag("GOOGLE_ADS_DEVELOPER_TOKEN"),
+    import ads_mcp
+
+    try:
+        tool_count = len(await mcp.list_tools(run_middleware=False))
+    except Exception:  # noqa: BLE001
+        tool_count = -1
+    body = (
+        b'{"status":"ok","oauth":%s,"redis":%s,"developer_token":%s,'
+        b'"management_tools":%s,"code_from_repo":%s,"tools":%d}'
+        % (
+            flag("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID", "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"),
+            flag("GOOGLE_ADS_MCP_STORAGE_REDIS_URL"),
+            flag("GOOGLE_ADS_DEVELOPER_TOKEN"),
+            b"true" if "ads_mcp.tools.management" in sys.modules else b"false",
+            b"false" if "site-packages" in (ads_mcp.__file__ or "") else b"true",
+            tool_count,
+        )
     )
     await send(
         {
