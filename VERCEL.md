@@ -10,7 +10,8 @@ Fork do [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp)
 | `api/index.py` | Expõe o servidor como app ASGI em `/mcp` (Streamable HTTP, sem estado), mais as rotas de OAuth e um `/health` |
 | `vercel.json` | Manda todas as rotas para a função e aumenta o timeout para 60 s |
 | `requirements.txt` / `.python-version` | Dependências e Python 3.12 para o build do Vercel |
-| `ads_mcp/tools_config.yaml` | Ferramentas que gravam (`labels`, `assets`) **desligadas** por padrão |
+| `ads_mcp/tools/management.py` | Ferramentas de gestão de campanhas (ver abaixo) |
+| `ads_mcp/tools_config.yaml` | Todas as ferramentas ligadas, incluindo `management`, `labels` e `assets` |
 | `.github/`, `CODEOWNERS` | Removidos (CI e donos do repositório original) |
 
 ## Variáveis de ambiente (Vercel → Settings → Environment Variables)
@@ -44,10 +45,22 @@ ela precisa ser marcada, senão o servidor recusa a autorização.
 - Conector MCP: `https://SEU-PROJETO.vercel.app/mcp`
 - Redirect OAuth (cadastrar no Google Cloud): `https://SEU-PROJETO.vercel.app/auth/callback`
 
-## Ligar as ferramentas que gravam
+## Ferramentas de gestão (`management`)
 
-Em `ads_mcp/tools_config.yaml`, troque `labels: false` e/ou `assets: false`
-para `true` e faça commit. Elas pedem confirmação antes de gravar.
+| Ferramenta | O que faz |
+| --- | --- |
+| `create_search_campaign` | Cria campanha de Pesquisa completa (orçamento, segmentação, negativas, grupo, palavras-chave e anúncio) — **sempre pausada** |
+| `update_campaign` | Ativa, pausa, remove, renomeia, muda orçamento diário ou data final |
+| `create_ad_group` / `update_ad_group` | Cria grupo (com palavras e anúncio) / ativa, pausa, remove, muda CPC |
+| `create_responsive_search_ad` / `update_ad_status` | Cria anúncio responsivo / ativa, pausa ou remove anúncio |
+| `add_keywords` / `update_keywords` | Adiciona palavras-chave / pausa, ativa, exclui ou muda CPC |
+| `add_negative_keywords` / `remove_negative_keywords` | Negativas no nível de campanha ou grupo |
+| `link_campaign_assets` | Vincula/desvincula sitelinks, frases de destaque etc. a uma campanha |
+
+Todas usam **propor e confirmar**: a primeira chamada (`validate_only=True`) valida na
+API do Google sem alterar nada e devolve um `checksum`; só a segunda chamada, com o
+mesmo `checksum`, grava. Para desligar um grupo de ferramentas, troque para `false` em
+`ads_mcp/tools_config.yaml`.
 
 ## Atualizar com o repositório do Google
 
