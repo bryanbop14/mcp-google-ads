@@ -1605,27 +1605,23 @@ def set_campaign_bidding(
         op = client.get_type("MutateOperation")
         camp = op.campaign_operation.update
         camp.resource_name = f"customers/{cid}/campaigns/{camp_id}"
+        # The API requires leaf paths in the field mask (not the whole strategy message).
         if strategy == BiddingStrategyUpdate.MAXIMIZE_CLICKS:
-            ts = client.get_type("TargetSpend")
             if max_cpc_limit is not None:
-                ts.cpc_bid_ceiling_micros = _micros(max_cpc_limit)
-            camp.target_spend = ts
-            path = "target_spend"
+                camp.target_spend.cpc_bid_ceiling_micros = _micros(max_cpc_limit)
+                path = "target_spend.cpc_bid_ceiling_micros"
+            else:
+                camp.target_spend.target_spend_micros = 0
+                path = "target_spend.target_spend_micros"
         elif strategy == BiddingStrategyUpdate.MAXIMIZE_CONVERSIONS:
-            mc = client.get_type("MaximizeConversions")
-            mc.target_cpa_micros = _micros(target_cpa) or 0
-            camp.maximize_conversions = mc
-            path = "maximize_conversions"
+            camp.maximize_conversions.target_cpa_micros = _micros(target_cpa) or 0
+            path = "maximize_conversions.target_cpa_micros"
         elif strategy == BiddingStrategyUpdate.MAXIMIZE_CONVERSION_VALUE:
-            mv = client.get_type("MaximizeConversionValue")
-            mv.target_roas = target_roas or 0
-            camp.maximize_conversion_value = mv
-            path = "maximize_conversion_value"
+            camp.maximize_conversion_value.target_roas = target_roas or 0
+            path = "maximize_conversion_value.target_roas"
         else:
-            mcpc = client.get_type("ManualCpc")
-            mcpc.enhanced_cpc_enabled = False
-            camp.manual_cpc = mcpc
-            path = "manual_cpc"
+            camp.manual_cpc.enhanced_cpc_enabled = False
+            path = "manual_cpc.enhanced_cpc_enabled"
         op.campaign_operation.update_mask.paths.append(path)
         return [op]
 
@@ -2030,10 +2026,14 @@ def set_recommendation_auto_apply(
     )
     wanted = {t.upper() for t in (recommendation_types or [])}
     targets = []
+    skipped = 0
     for r in rows:
         sub = r.recommendation_subscription
         rn = sub.resource_name
         type_from_rn = rn.rsplit("/", 1)[-1]
+        if type_from_rn == "UNKNOWN":
+            skipped += 1
+            continue
         if all_subscriptions or sub.type_.name in wanted or type_from_rn in wanted:
             targets.append((rn, type_from_rn, sub.status.name))
     if not targets:
@@ -2057,6 +2057,13 @@ def set_recommendation_auto_apply(
     for _, type_name, current in to_change:
         change_items += _items(
             "UPDATE", "Auto-applied recommendation", type_name, {"Status": status.value}, {"Status": current}
+        )
+    if skipped:
+        change_items += _items(
+            "SKIP",
+            "Auto-applied recommendation",
+            f"{skipped} subscription(s) of types the API reports as UNKNOWN",
+            {"Note": "The API can't change these; change them in Google Ads > Recommendations > Auto-apply."},
         )
     return _run(
         tool="set_recommendation_auto_apply",
