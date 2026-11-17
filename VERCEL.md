@@ -56,6 +56,15 @@ ela precisa ser marcada, senão o servidor recusa a autorização.
 | `add_keywords` / `update_keywords` | Adiciona palavras-chave / pausa, ativa, exclui ou muda CPC |
 | `add_negative_keywords` / `remove_negative_keywords` | Negativas no nível de campanha ou grupo |
 | `link_campaign_assets` | Vincula/desvincula sitelinks, frases de destaque etc. a uma campanha |
+| `create_bidding_data_exclusions` / `remove_bidding_data_exclusions` | Exclusões de dados para o lance automático ignorar dias com rastreamento falho |
+| `update_campaign_settings` | Liga/desliga parceiros de pesquisa e Rede de Display; opção de local (presença ou interesse) |
+| `set_campaign_bidding` | Troca a estratégia de lances (Maximizar cliques, conversões, valor, CPC manual) |
+| `manage_campaign_targeting` | Locais (incluir/excluir), idiomas, ajuste por dispositivo e programação de anúncios |
+| `create_negative_keyword_list` / `update_negative_keyword_list` | Listas de negativas compartilhadas entre campanhas |
+| `set_recommendation_auto_apply` | Pausa ou reativa as recomendações aplicadas automaticamente |
+| `update_conversion_actions` | Ação principal/secundária, contagem e ocultar |
+| `set_campaign_conversion_goals` | Quais metas de conversão a campanha usa para otimizar |
+| `update_responsive_search_ad` | Edita títulos, descrições, URL e caminhos de um anúncio existente |
 
 Todas usam **propor e confirmar**: a primeira chamada (`validate_only=True`) valida na
 API do Google sem alterar nada e devolve um `checksum`; só a segunda chamada, com o
