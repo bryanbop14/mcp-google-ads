@@ -1254,3 +1254,127 @@ def link_campaign_assets(
         login_customer_id=login_customer_id,
         success="Campaign assets updated:",
     )
+
+
+class ExclusionPeriod(BaseModel):
+    name: str = Field(description="Short name, e.g. 'Tag duplicada 12/out'.")
+    start_date: str = Field(description="First excluded day, 'YYYY-MM-DD'.")
+    end_date: str = Field(description="Last excluded day (inclusive), 'YYYY-MM-DD'.")
+    campaign_ids: list[str] = Field(
+        description="Campaigns affected (campaign.id). Only these campaigns ignore the period."
+    )
+    description: str | None = None
+
+
+@management_mcp.tool(annotations=_WRITE)
+@_confirm_doc
+def create_bidding_data_exclusions(
+    customer_id: str | int,
+    periods: list[ExclusionPeriod],
+    login_customer_id: str | int | None = None,
+    validate_only: bool = True,
+    checksum: str | None = None,
+) -> str:
+    """Creates bidding data exclusions: Smart Bidding ignores conversion data from the given
+    periods and campaigns (e.g. days when a conversion tag fired duplicates or broke).
+
+    Reports are not changed; only automated bidding (Maximize conversions, target CPA,
+    target ROAS, Maximize conversion value) stops learning from those days. Each period
+    covers whole days, from 00:00:00 of start_date to 23:59:59 of end_date.
+
+    Args:
+        customer_id: Account ID.
+        periods: [{name, start_date, end_date, campaign_ids, description?}].
+        login_customer_id: Optional manager account ID.
+    """
+    cid = _cid(customer_id)
+    if not periods:
+        raise ToolError("Error: give at least one period.")
+    for p in periods:
+        if p.end_date < p.start_date:
+            raise ToolError(f"Error: end_date before start_date in '{p.name}'.")
+        if not p.campaign_ids:
+            raise ToolError(f"Error: '{p.name}' needs at least one campaign_id.")
+
+    def build(client) -> list:
+        ops = []
+        for p in periods:
+            op = client.get_type("MutateOperation")
+            ex = op.bidding_data_exclusion_operation.create
+            ex.name = p.name
+            if p.description:
+                ex.description = p.description
+            ex.scope = client.enums.SeasonalityEventScopeEnum.CAMPAIGN
+            ex.start_date_time = f"{p.start_date} 00:00:00"
+            ex.end_date_time = f"{p.end_date} 23:59:59"
+            for c in p.campaign_ids:
+                ex.campaigns.append(f"customers/{cid}/campaigns/{utils.extract_id(str(c))}")
+            ops.append(op)
+        return ops
+
+    change_items = []
+    for p in periods:
+        change_items += _items(
+            "CREATE",
+            "Bidding data exclusion",
+            p.name,
+            {
+                "Period": f"{p.start_date} 00:00 → {p.end_date} 23:59",
+                "Campaign IDs": [utils.extract_id(str(c)) for c in p.campaign_ids],
+                "Description": p.description,
+            },
+        )
+    return _run(
+        tool="create_bidding_data_exclusions",
+        customer_id=cid,
+        params={"periods": [p.model_dump(mode="json") for p in periods]},
+        build_ops=build,
+        change_items=change_items,
+        validate_only=validate_only,
+        checksum=checksum,
+        login_customer_id=login_customer_id,
+        success="Data exclusions created:",
+    )
+
+
+@management_mcp.tool(annotations=_WRITE)
+@_confirm_doc
+def remove_bidding_data_exclusions(
+    customer_id: str | int,
+    data_exclusion_ids: list[str],
+    login_customer_id: str | int | None = None,
+    validate_only: bool = True,
+    checksum: str | None = None,
+) -> str:
+    """Removes bidding data exclusions. Find IDs with `search` on resource
+    bidding_data_exclusion (field bidding_data_exclusion.data_exclusion_id).
+
+    Args:
+        customer_id: Account ID.
+        data_exclusion_ids: bidding_data_exclusion.data_exclusion_id values.
+        login_customer_id: Optional manager account ID.
+    """
+    cid = _cid(customer_id)
+    ids = [utils.extract_id(str(i)) for i in data_exclusion_ids]
+    if not ids:
+        raise ToolError("Error: give at least one data_exclusion_id.")
+
+    def build(client) -> list:
+        ops = []
+        for i in ids:
+            op = client.get_type("MutateOperation")
+            op.bidding_data_exclusion_operation.remove = f"customers/{cid}/biddingDataExclusions/{i}"
+            ops.append(op)
+        return ops
+
+    return _run(
+        tool="remove_bidding_data_exclusions",
+        customer_id=cid,
+        params={"data_exclusion_ids": ids},
+        build_ops=build,
+        change_items=_items("REMOVE", "Bidding data exclusions", ", ".join(ids), {"IDs": ids}),
+        validate_only=validate_only,
+        checksum=checksum,
+        login_customer_id=login_customer_id,
+        success="Data exclusions removed:",
+    )
