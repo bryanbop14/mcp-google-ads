@@ -10,3 +10,4 @@ namespaces:
   labels: true
   assets: true
   management: true
+  planner: true

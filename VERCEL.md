@@ -11,6 +11,7 @@ Fork do [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp)
 | `vercel.json` | Manda todas as rotas para a função e aumenta o timeout para 60 s |
 | `requirements.txt` / `.python-version` | Dependências e Python 3.12 para o build do Vercel |
 | `ads_mcp/tools/management.py` | Ferramentas de gestão de campanhas (ver abaixo) |
+| `ads_mcp/tools/keyword_planner.py` | Planejador de Palavras-chave: volume de busca e ideias (ver abaixo) |
 | `ads_mcp/tools_config.yaml` | Todas as ferramentas ligadas, incluindo `management`, `labels` e `assets` |
 | `.github/`, `CODEOWNERS` | Removidos (CI e donos do repositório original) |
 
@@ -70,6 +71,18 @@ Todas usam **propor e confirmar**: a primeira chamada (`validate_only=True`) val
 API do Google sem alterar nada e devolve um `checksum`; só a segunda chamada, com o
 mesmo `checksum`, grava. Para desligar um grupo de ferramentas, troque para `false` em
 `ads_mcp/tools_config.yaml`.
+
+## Planejador de Palavras-chave (`planner`)
+
+| Ferramenta | O que faz |
+| --- | --- |
+| `keyword_volumes` | Volume médio mensal de busca, concorrência e faixa de lance do topo da página para uma lista de palavras (até 10.000) — igual a "Ver volume de pesquisa e previsões" |
+| `keyword_ideas` | Ideias de palavras a partir de até 20 palavras-semente e/ou o URL de uma página, com volume — igual a "Descobrir novas palavras-chave" |
+
+Só leitura: não alteram nada na conta. Padrão: Brasil (`2076`) e português (`1014`);
+outros locais e idiomas por `location_ids` e `language_id`. O token de desenvolvedor
+precisa de um nível de acesso cujo uso permitido inclua pesquisa de palavras-chave
+(KeywordPlanIdeaService); se não incluir, a API devolve erro de autorização.
 
 ## Atualizar com o repositório do Google
 
