@@ -11,6 +11,7 @@ Fork do [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp)
 | `vercel.json` | Manda todas as rotas para a função e aumenta o timeout para 60 s |
 | `requirements.txt` / `.python-version` | Dependências e Python 3.12 para o build do Vercel |
 | `ads_mcp/tools/management.py` | Ferramentas de gestão de campanhas (ver abaixo) |
+| `site_pages.py` | Páginas públicas: início (`/`), política de privacidade (`/privacidade`) e termos de serviço (`/termos`), exigidas pela verificação de marca do Google |
 | `ads_mcp/tools/keyword_planner.py` | Planejador de Palavras-chave: volume de busca e ideias (ver abaixo) |
 | `ads_mcp/tools_config.yaml` | Todas as ferramentas ligadas, incluindo `management`, `labels` e `assets` |
 | `.github/`, `CODEOWNERS` | Removidos (CI e donos do repositório original) |
@@ -25,6 +26,8 @@ Fork do [googleads/google-ads-mcp](https://github.com/googleads/google-ads-mcp)
 | `GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET` | Chave secreta desse cliente |
 | `GOOGLE_ADS_MCP_BASE_URL` | `https://SEU-PROJETO.vercel.app` (sem barra no fim) |
 | `GOOGLE_ADS_MCP_JWT_SIGNING_KEY` | Texto aleatório longo (`openssl rand -hex 32`) |
+| `SITE_CONTACT_EMAIL` | Opcional: e-mail de contato mostrado nas páginas públicas (padrão `comercial@riole.com.br`) |
+| `GOOGLE_SITE_VERIFICATION` | Opcional: código da meta tag do Google Search Console, para verificar o domínio pela página inicial |
 | `GOOGLE_ADS_MCP_STORAGE_REDIS_URL` | URL `rediss://...` do Redis. Opcional: se a integração Upstash do Vercel foi criada com o prefixo `GOOGLE_ADS_MCP_STORAGE_REDIS`, o servidor lê `GOOGLE_ADS_MCP_STORAGE_REDIS_REDIS_URL` sozinho |
 
 ## Obrigatório: desligar a Vercel Authentication
