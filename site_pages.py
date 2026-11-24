@@ -7,7 +7,7 @@ public links to the privacy policy and the terms of service on the same domain.
 import html
 import os
 
-APP_NAME = "Riole Google Ads MCP"
+APP_NAME = "Riole Ads Assistant"
 COMPANY = "Riole Eletrônica Ltda."
 CNPJ = "76.617.927/0001-37"
 ADDRESS = "Rua Luiz Andreta, 209, Atuba, Colombo/PR, CEP 83.413-240, Brasil"
@@ -236,7 +236,17 @@ E-mail: <a href="mailto:{email}">{email}</a></p>""",
     )
 
 
+# Google Search Console ownership file (HTML file method). Keep it published:
+# removing it makes the property unverified again.
+SEARCH_CONSOLE_FILE = "google7a8c44aadb5f9e78.html"
+
+
+def search_console_file() -> str:
+    return f"google-site-verification: {SEARCH_CONSOLE_FILE}"
+
+
 ROUTES = {
+    f"/{SEARCH_CONSOLE_FILE}": search_console_file,
     "/": home,
     "/privacidade": privacy,
     "/privacy": privacy,
